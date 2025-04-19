@@ -2,8 +2,6 @@
 Connection hooks for Behave tests.
 """
 
-import asyncio
-
 from src.common.registry_and_connection_facade import RegistryAndConnectionFacade
 
 
