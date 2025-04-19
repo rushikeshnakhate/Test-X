@@ -1,0 +1,20 @@
+Feature: Command Execution Tests for {{ service_type }} Services
+
+  Background:
+    Given I have a {{ service_type }} service
+    And I have the following service configuration:
+      | service_name | {{ service_name }} |
+      | timeout      | {{ timeout }}      |
+
+  Scenario: Execute {{ command }} command on {{ service_name }} service
+    When I execute the "{{ command }}" command
+    Then the command should execute successfully
+    And I should see the expected output
+    And the command should complete within {{ timeout }} seconds
+
+  Scenario: Execute {{ command }} command with invalid service name
+    Given I have an invalid service name
+    When I execute the "{{ command }}" command
+    Then the command should fail
+    And I should see an error message
+    And the error should be handled gracefully 

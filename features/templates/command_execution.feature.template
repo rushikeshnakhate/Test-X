@@ -1,0 +1,24 @@
+Feature: {{ service_type }} Command Execution for {{ service_name }}
+  As a network administrator
+  I want to execute the command "{{ command }}"
+  So that I can monitor and manage the network device
+
+  Scenario: Execute {{ command }} command with {{ timeout }}s timeout
+    Given I am connected to {{ service_name }} via {{ service_type }}
+    When I execute the command "{{ command }}"
+    And I wait for {{ timeout }} seconds
+    Then I should receive a valid response
+    And the response should not be empty
+    And the response should not contain error messages
+
+  Scenario: Execute $command with invalid credentials
+    Given I have invalid credentials
+    When I execute the command "$command"
+    Then the command should fail
+    And I should receive an authentication error
+
+  Scenario: Execute $command with connection timeout
+    Given the connection to $service_name is not available
+    When I execute the command "$command"
+    Then the command should fail
+    And I should receive a connection timeout error 

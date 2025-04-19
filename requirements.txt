@@ -1,0 +1,11 @@
+behave==1.2.6
+aiohttp==3.8.5
+pyyaml==6.0.1
+asyncio==3.4.3
+python-quickfix==1.0.0
+oracledb==1.3.1
+tenacity==8.2.3
+pydantic==2.4.2
+Jinja2==3.1.2
+hydra-core==1.3.2 
+omegaconf~=2.3.0
