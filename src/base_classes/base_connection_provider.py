@@ -1,47 +1,65 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Type, List
 from .base_connection import BaseConnection
-import hydra
-from omegaconf import DictConfig, OmegaConf
+from src.common.logging_config import setup_logging, get_logger
+from src.common.config_loader import ConfigLoader
+
+# Setup logging for base provider
+logger = setup_logging("base_provider", "DEBUG")
 
 
 class BaseConnectionProvider(ABC):
     """Base class for all connection providers"""
 
     def __init__(self):
+        """Initialize the provider."""
+        logger.info(f"Initializing {self.__class__.__name__}")
         self._connections: Dict[str, BaseConnection] = {}
-        self._config: DictConfig = None
+        self._config: Dict[str, Dict[str, Any]] = {}
         self._enabled_connections: List[str] = []
+        self._connection_class: Optional[Type[BaseConnection]] = None
+        self._config_loader = ConfigLoader()
+        logger.debug("Provider components initialized")
 
-    @hydra.main(version_base=None, config_path="../../config", config_name="command_execution_config")
-    def load_config(self, cfg: DictConfig = None) -> None:
-        """
-        Load configuration from config.yaml using hydra-core.
-        Checks if services are enabled and creates a store list of connection objects.
-        
-        Args:
-            cfg: Hydra configuration object containing all parameters
-        """
-        self._config = cfg
-        service_type = self.__class__.__name__.lower().replace('provider', '')
-
-        # Get service-specific config
-        service_config = cfg.get(service_type, {})
-
-        # Check if service is enabled and create connections
-        if service_config.get('enable', True):
-            connections = service_config.get('connections', [])
-            for conn in connections:
-                if conn.get('enable', True):
-                    connection_id = conn.get('name', 'default')
-                    self._enabled_connections.append(connection_id)
-                    # Create connection object
-                    self._connections[connection_id] = self.create_connection(conn)
+    async def initialize(self) -> None:
+        """Initialize the provider with configuration."""
+        logger.info(f"Starting initialization of {self.__class__.__name__}")
+        try:
+            # Load configuration - concrete classes should override this
+            await self.load_config()
+            logger.info(f"{self.__class__.__name__} initialized successfully")
+            logger.debug(f"Loaded configuration: {self._config}")
+        except Exception as e:
+            logger.error(f"Error initializing {self.__class__.__name__}: {str(e)}", exc_info=True)
+            raise
 
     @abstractmethod
-    async def create_connection(self, config: Dict[str, Any]) -> BaseConnection:
-        """Create a new connection instance"""
+    async def load_config(self) -> None:
+        """Load provider-specific configuration. Must be implemented by concrete classes."""
         pass
+
+    @abstractmethod
+    async def create_connection(self, connection_id: str) -> Optional[BaseConnection]:
+        """Create a new connection instance for the given connection ID"""
+        pass
+
+    async def create_connections(self) -> Dict[str, BaseConnection]:
+        """Create all enabled connections"""
+        logger.info(f"Creating connections for {self.__class__.__name__}")
+        created_connections = {}
+
+        for connection_id in self._enabled_connections:
+            try:
+                connection = await self.create_connection(connection_id)
+                if connection:
+                    created_connections[connection_id] = connection
+                    logger.info(f"Successfully created connection {connection_id}")
+                else:
+                    logger.warning(f"Failed to create connection {connection_id}")
+            except Exception as e:
+                logger.error(f"Error creating connection {connection_id}: {str(e)}", exc_info=True)
+
+        return created_connections
 
     @abstractmethod
     def get_connection_class(self) -> Type[BaseConnection]:
@@ -65,14 +83,16 @@ class BaseConnectionProvider(ABC):
             return None
 
         if connection_id not in self._connections:
-            config = self._config.get(connection_id)
-            if not config:
-                return None
-            self._connections[connection_id] = self.create_connection(config)
+            connection = await self.create_connection(connection_id)
+            if connection:
+                self._connections[connection_id] = connection
 
-        connection = self._connections[connection_id]
-        await connection.connect()
-        return connection
+        if connection_id in self._connections:
+            connection = self._connections[connection_id]
+            await connection.connect()
+            return connection
+
+        return None
 
     async def connect_all(self) -> Dict[str, BaseConnection]:
         """
@@ -88,12 +108,13 @@ class BaseConnectionProvider(ABC):
                 connected[connection_id] = connection
         return connected
 
-    async def get_connection(self, connection_id: str, config: Dict[str, Any]) -> BaseConnection:
+    async def get_connection(self, connection_id: str) -> Optional[BaseConnection]:
         """Get or create a connection"""
         if connection_id not in self._connections:
-            connection = await self.create_connection(config)
-            self._connections[connection_id] = connection
-        return self._connections[connection_id]
+            connection = await self.create_connection(connection_id)
+            if connection:
+                self._connections[connection_id] = connection
+        return self._connections.get(connection_id)
 
     async def close_connection(self, connection_id: str) -> None:
         """Close and remove a connection"""
@@ -115,3 +136,33 @@ class BaseConnectionProvider(ABC):
     def get_enabled_connections(self) -> List[str]:
         """Get list of enabled connection IDs"""
         return self._enabled_connections.copy()
+
+    async def validate_config(self, config: Dict[str, Any]) -> bool:
+        """Validate provider configuration."""
+        logger.debug(f"Validating configuration for {self.__class__.__name__}")
+        try:
+            # Implementation specific to each provider
+            return True
+        except Exception as e:
+            logger.error(f"Configuration validation failed: {str(e)}", exc_info=True)
+            return False
+
+    async def get_health_status(self) -> Dict[str, Any]:
+        """Get provider health status."""
+        logger.debug(f"Getting health status for {self.__class__.__name__}")
+        try:
+            # Implementation specific to each provider
+            return {"status": "healthy"}
+        except Exception as e:
+            logger.error(f"Error getting health status: {str(e)}", exc_info=True)
+            return {"status": "unhealthy", "error": str(e)}
+
+    async def shutdown(self) -> None:
+        """Shutdown the provider."""
+        logger.info(f"Shutting down {self.__class__.__name__}")
+        try:
+            await self.close_all_connections()
+            logger.info(f"{self.__class__.__name__} shutdown completed")
+        except Exception as e:
+            logger.error(f"Error during shutdown: {str(e)}", exc_info=True)
+            raise

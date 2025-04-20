@@ -1,7 +1,6 @@
-import oracledb
 from typing import Any, Optional, Dict
 
-from jinja2.nodes import List
+import oracledb
 
 from ...base_classes.base_connection import BaseConnection
 from ...base_classes.base_service import BaseService
@@ -44,7 +43,7 @@ class OracleConnection(BaseConnection):
 
 
 class OracleService(BaseService):
-    def __init__(self, config: DatabaseServiceConfig):
+    def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self._connection: Optional[OracleConnection] = None
 

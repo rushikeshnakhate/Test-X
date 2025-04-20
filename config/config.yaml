@@ -1,20 +1,10 @@
-barx:
-  database_services:
+oracle:
+  enable: true
+  connections:
     - name: "oracle_prod"
       host: "localhost"
       port: 1521
-      enable: true
-      username: "system"
-      password: "oracle"
-      service_name: "ORCL"
-      retry_attempts: 3
-      retry_delay: 1.0
-      connection_timeout: 30.0
-
-    - name: "oracle_test"
-      host: "localhost"
-      port: 1521
-      enable: true
+      enable: false
       username: "test"
       password: "test123"
       service_name: "TESTDB"
@@ -22,49 +12,61 @@ barx:
       retry_delay: 1.0
       connection_timeout: 30.0
 
-  command_services:
+command:
+  enable: true
+  connections:
     - name: "remote_command_prod"
       host: "api.example.com"
       port: 443
-      enable: true
+      enable: false
       api_key: "your-api-key"
       api_version: "v1"
       retry_attempts: 3
       retry_delay: 1.0
       connection_timeout: 30.0
 
-  pattern_search_services:
+search:
+  enable: true
+  connections:
     - name: "pattern_search_prod"
       host: "search.example.com"
       port: 8080
-      enable: true
+      enable: false
       search_timeout: 60.0
       max_results: 100
       retry_attempts: 3
       retry_delay: 1.0
       connection_timeout: 30.0
 
-  quickfix:
-    - name: "quickfix_prod-1"
+quickfix:
+  enable: true
+  connections:
+    - name: "quickfix_prod"
       enable: true
       config_file_name: "test.cfg"
       retry_attempts: 3
-      retry_delay: 1.0 
-    - name: "quickfix_prod-1"
+      retry_delay: 1.0
+
+remote_database:
+  enable: false
+  connections:
+    - name: "remote_database_prod"
       enable: true
-      config_file_name: "test.cfg"
+      host: 'localhost'
+      port: 9001
+      retry_attempts: 10
+      retry_delay: 1.0
+      timeout: 30.0
+
+imix:
+  enable: false
+  connections:
+    - name: "imix_prod"
+      enable: false
+      host: "imix.example.com"
+      port: 8080
+      username: "admin"
+      password: "admin123"
       retry_attempts: 3
-      retry_delay: 1.0 
-  remote_database_server:
-    enable: true
-    host: "0.0.0.0"
-    port: 8080
-    connections:
-      - name: "default"
-        enable: true
-        database_path: "./data/test.db"
-        max_connections: 10
-        timeout: 30
-        ssl_enabled: false
-        ssl_cert: null
-        ssl_key: null
+      retry_delay: 1.0
+      connection_timeout: 30.0

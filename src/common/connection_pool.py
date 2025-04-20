@@ -20,6 +20,7 @@ class ConnectionPool(ConnectionSubject):
         if not self._initialized:
             super().__init__()
             self._providers: Dict[str, BaseConnectionProvider] = {}
+            self._connections: Dict[str, Dict[str, BaseConnection]] = {}
             self._lock = asyncio.Lock()
             self._initialized = True
 
@@ -36,6 +37,11 @@ class ConnectionPool(ConnectionSubject):
 
             provider = self._providers[service_type]
             connection = await provider.get_connection(connection_id, config)
+            
+            # Store the connection in the pool
+            if service_type not in self._connections:
+                self._connections[service_type] = {}
+            self._connections[service_type][connection_id] = connection
 
             # Notify observers about the connection creation
             await self.notify(ConnectionEvent(
@@ -52,6 +58,12 @@ class ConnectionPool(ConnectionSubject):
             if service_type in self._providers:
                 provider = self._providers[service_type]
                 await provider.close_connection(connection_id)
+                
+                # Remove the connection from the pool
+                if service_type in self._connections and connection_id in self._connections[service_type]:
+                    del self._connections[service_type][connection_id]
+                    if not self._connections[service_type]:
+                        del self._connections[service_type]
 
                 # Notify observers about the connection closure
                 await self.notify(ConnectionEvent(
@@ -65,6 +77,7 @@ class ConnectionPool(ConnectionSubject):
         async with self._lock:
             for service_type, provider in self._providers.items():
                 await provider.close_all_connections()
+            self._connections.clear()
 
     async def get_connection_status(self, service_type: str, connection_id: str) -> Optional[bool]:
         """Get the status of a specific connection"""
@@ -77,3 +90,8 @@ class ConnectionPool(ConnectionSubject):
         """Get all registered providers"""
         async with self._lock:
             return self._providers.copy()
+            
+    async def get_all_connections(self) -> Dict[str, Dict[str, BaseConnection]]:
+        """Get all connections in the pool"""
+        async with self._lock:
+            return self._connections.copy()

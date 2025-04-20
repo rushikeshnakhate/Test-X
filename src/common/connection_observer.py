@@ -2,20 +2,28 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 import asyncio
 from datetime import datetime
+from dataclasses import dataclass
 
 
+@dataclass
 class ConnectionEvent:
-    def __init__(self, connection_id: str, event_type: str, details: Dict[str, Any] = None):
-        self.connection_id = connection_id
-        self.event_type = event_type
-        self.details = details or {}
-        self.timestamp = datetime.utcnow()
+    """Event data for connection-related events."""
+    connection_id: str
+    event_type: str
+    details: Dict[str, Any] = None
+    timestamp: float = None
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.now().timestamp()
 
 
 class ConnectionObserver(ABC):
+    """Base class for connection observers."""
+
     @abstractmethod
     async def on_connection_event(self, event: ConnectionEvent) -> None:
-        """Handle connection events"""
+        """Handle a connection event."""
         pass
 
 
@@ -53,28 +61,42 @@ class LoggingObserver(ConnectionObserver):
             print(f"Details: {event.details}")
 
 
-class MetricsObserver(ConnectionObserver):
+class HealthObserver(ConnectionObserver):
+    """Observer for monitoring connection health."""
+
     def __init__(self):
-        self.metrics: Dict[str, Dict[str, int]] = {}
-        self._lock = asyncio.Lock()
-
-    async def on_connection_event(self, event: ConnectionEvent) -> None:
-        async with self._lock:
-            if event.connection_id not in self.metrics:
-                self.metrics[event.connection_id] = {}
-
-            event_counts = self.metrics[event.connection_id]
-            event_counts[event.event_type] = event_counts.get(event.event_type, 0) + 1
-
-
-class HealthCheckObserver(ConnectionObserver):
-    def __init__(self):
+        """Initialize the health observer."""
         self.health_status: Dict[str, bool] = {}
-        self._lock = asyncio.Lock()
 
     async def on_connection_event(self, event: ConnectionEvent) -> None:
-        async with self._lock:
-            if event.event_type == "health_check":
-                self.health_status[event.connection_id] = event.details.get("healthy", False)
-            elif event.event_type == "disconnected":
-                self.health_status[event.connection_id] = False
+        """Update health status based on connection events."""
+        if event.event_type == "connection_created":
+            self.health_status[event.connection_id] = True
+        elif event.event_type == "connection_closed":
+            self.health_status[event.connection_id] = False
+        elif event.event_type == "connection_error":
+            self.health_status[event.connection_id] = False
+
+
+class MetricsObserver(ConnectionObserver):
+    """Observer for collecting connection metrics."""
+
+    def __init__(self):
+        """Initialize the metrics observer."""
+        self.metrics: Dict[str, Dict[str, int]] = {
+            "connections": {"total": 0, "active": 0, "failed": 0},
+            "events": {"created": 0, "closed": 0, "error": 0}
+        }
+
+    async def on_connection_event(self, event: ConnectionEvent) -> None:
+        """Update metrics based on connection events."""
+        if event.event_type == "connection_created":
+            self.metrics["connections"]["total"] += 1
+            self.metrics["connections"]["active"] += 1
+            self.metrics["events"]["created"] += 1
+        elif event.event_type == "connection_closed":
+            self.metrics["connections"]["active"] -= 1
+            self.metrics["events"]["closed"] += 1
+        elif event.event_type == "connection_error":
+            self.metrics["connections"]["failed"] += 1
+            self.metrics["events"]["error"] += 1
